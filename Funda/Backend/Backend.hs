@@ -1,9 +1,11 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies     #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Funda.Backend.Backend where
 
-class Backend b where
+class Monad (BackendMonad b) =>  Backend b where
   type Key   b
   type Value b
-  get    :: b -> Key b -> IO (Value b)
-  put    :: b -> Key b -> Value b -> IO ()
-  delete :: b -> Key b -> IO ()
+  type BackendMonad b :: * -> *
+  get    :: b -> Key b -> BackendMonad b (Value b)
+  put    :: b -> Key b -> Value b -> BackendMonad b ()
+  delete :: b -> Key b -> BackendMonad b ()

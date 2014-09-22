@@ -10,6 +10,7 @@ import Funda.Backend.Bitcask.Types as BitcaskTypes
 instance Backend Bitcask where
   type Key   Bitcask = BitcaskTypes.Key
   type Value Bitcask = BitcaskTypes.Value
+  type BackendMonad Bitcask = IO
   get = BitcaskGet.get
   put = BitcaskPut.put
   delete = BitcaskDelete.delete
