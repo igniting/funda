@@ -1,11 +1,12 @@
 module Funda.Backend.Bitcask.Types where
 
 import           Control.Concurrent.STM.TVar
-import           Data.ByteString             (ByteString, empty)
+import qualified Data.ByteString             as B
+import qualified Data.ByteString.Lazy        as LazyB
 import           Data.HashMap.Strict         (HashMap)
 
-type Key = ByteString
-type Value = ByteString
+type Key = B.ByteString
+type Value = LazyB.ByteString
 
 type KeyDir = HashMap Key Value
 
@@ -18,4 +19,4 @@ data Bitcask =  Bitcask { keyDir   :: TVar KeyDir
                         }
 
 tombstone :: Value
-tombstone = empty
+tombstone = LazyB.empty
