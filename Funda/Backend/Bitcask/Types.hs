@@ -1,22 +1,24 @@
 module Funda.Backend.Bitcask.Types where
 
-import           Control.Concurrent.STM.TVar
-import qualified Data.ByteString             as B
-import qualified Data.ByteString.Lazy        as LazyB
-import           Data.HashMap.Strict         (HashMap)
+import qualified Data.ByteString      as B
+import qualified Data.ByteString.Lazy as LazyB
+import qualified Data.Map             as Map
 
-type Key = B.ByteString
-type Value = LazyB.ByteString
+type K = B.ByteString
+type V = LazyB.ByteString
 
-type KeyDir = HashMap Key Value
+type MemoryMap = Map.Map K V
 
 data BitcaskSettings =  BitcaskSettings { maxBytes :: Integer
                                         } deriving (Show, Eq)
 
-data Bitcask =  Bitcask { keyDir   :: TVar KeyDir
-                        , dataDir  :: FilePath
-                        , settings :: BitcaskSettings
-                        }
+data Bitcask k v =  Bitcask { keyDir   :: MemoryMap
+                            , dataDir  :: FilePath
+                            , settings :: BitcaskSettings
+                            }
 
-tombstone :: Value
+defaultSettings :: BitcaskSettings
+defaultSettings = BitcaskSettings { maxBytes = 512 }
+
+tombstone :: V
 tombstone = LazyB.empty
