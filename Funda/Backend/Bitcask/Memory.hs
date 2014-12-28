@@ -2,28 +2,21 @@ module Funda.Backend.Bitcask.Memory where
 
 import Funda.Backend.Bitcask.Types
 
-import           Control.Monad.State
-import qualified Data.Map            as Map
+import qualified Data.Map   as Map
 import           Data.Maybe
-import           Prelude             hiding (lookup)
+import           Prelude    hiding (lookup)
 
-insert_ :: K -> V -> State (Bitcask K V) ()
-insert_ key val = do
-  b@(Bitcask m _ _) <- get
-  put $ b { keyDir = Map.insert key val m }
+insertMem :: MemoryMap -> K -> V -> MemoryMap
+insertMem m key val = Map.insert key val m
 
-lookup :: K -> State (Bitcask K V) (Maybe V)
-lookup key = do
-  Bitcask m _ _ <- get
-  return (Map.lookup key m)
+queryMem :: MemoryMap -> K -> Maybe V
+queryMem m key = Map.lookup key m
 
-remove :: K ->  State (Bitcask K V) ()
-remove key = do
-  b@(Bitcask m _ _) <- get
-  put $ b { keyDir = Map.delete key m }
+deleteMem :: MemoryMap -> K ->  MemoryMap
+deleteMem m key = Map.delete key m
 
 openMemoryMap :: String -> MemoryMap
-openMemoryMap = undefined
+openMemoryMap _ = openEmptyMemoryMap
 
 openEmptyMemoryMap :: MemoryMap
 openEmptyMemoryMap = Map.empty

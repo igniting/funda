@@ -17,6 +17,18 @@ import Funda.Backend.Serializable
 newtype Update st a = Update { unUpdate :: State st a }
                      deriving (Monad, Functor, Applicative, MonadState st)
 
+instance MonadIO (Update st) where
+  liftIO = undefined
+
+-- instance Monad (Update st) where
+--   return a = Update $ state (\s -> (a,s))
+--   (Update st) >>= f = Update $ state (\s -> let (a, s') = runState st s
+--                                             in runState (unUpdate . f $ a) s'
+--                                      )
+--   (Update st) >> (Update st') =  Update $ state (\s -> let (_, s') = runState st s
+--                                                        in runState st' s'
+--                                      )
+
 runUpdate :: Update st a -> st -> a
 runUpdate u = evalState (unUpdate u)
 
@@ -40,25 +52,28 @@ class Backend b where
   update    :: Key b -> Value b -> Update b (IO ())
   del       :: Key b -> Update b (IO ())
 
-class (Backend b, Serializable (K d) (Key b), Serializable (V d) (Value b)) => Database d b | d -> b where
+class (Backend b,
+       Serializable (K d) (Key b),
+       Serializable (V d) (Value b)
+      ) => Database d b | d -> b where
   type K d
   type V d
 
   toBackend :: d -> b
   toDatabase :: b -> d
 
-  lUpdate :: Update b a -> Update d a
-  lUpdate (Update st) = Update $ state f
+  liftU :: Update b a -> Update d a
+  liftU (Update st) = Update $ state f
     where
       f database = (val, toDatabase backend)
         where
           (val, backend) = runState st $ toBackend database
 
-  lQuery :: Query b a -> Query d a
-  lQuery (Query r) = Query $ withReader toBackend r
+  liftQ :: Query b a -> Query d a
+  liftQ (Query r) = Query $ withReader toBackend r
 
   find   :: K d ->  Query d (IO (Maybe (V d)))
-  find key = lQuery $ fmap (fmap (fromMaybeEither . fmap decode)) (query (encode key))
+  find key = liftQ $ fmap (fmap (fromMaybeEither . fmap decode)) (query (encode key))
     where
       fromMaybeEither :: Maybe (Either String a) -> Maybe a
       fromMaybeEither Nothing            = Nothing
@@ -66,7 +81,7 @@ class (Backend b, Serializable (K d) (Key b), Serializable (V d) (Value b)) => D
       fromMaybeEither (Just (Left err))  = error $ "Could not decode: \n" ++ err
 
   insert :: K d -> V d -> Update d (IO ())
-  insert key value = lUpdate $ update (encode key) (encode value)
+  insert key value = liftU $ update (encode key) (encode value)
 
   delete :: K d -> Update d (IO ())
-  delete key = lUpdate $ del $ encode key
+  delete key = liftU $ del $ encode key

@@ -1,12 +1,15 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE TypeFamilies          #-}
 module Funda.Backend.Bitcask.Bitcask where
 
-import           Control.Monad.State.Lazy
-import qualified Data.Aeson               as Aeson
-import qualified Data.ByteString          as B
-import           Data.ByteString.Lazy     (empty)
+import           Control.Monad.Reader
+import           Control.Monad.State
+import qualified Data.Aeson                 as Aeson
+import qualified Data.Aeson.Encode          as AesonEncode
+import qualified Data.ByteString            as B
+import qualified Data.ByteString.Lazy.Char8 as C
 import           Data.Coerce
 
 import Funda.Backend.Backend
@@ -14,42 +17,51 @@ import Funda.Backend.Bitcask.Memory
 import Funda.Backend.Bitcask.Types  as Types
 import Funda.Backend.Serializable
 
-type JSONBitcask =  Bitcask B.ByteString Aeson.Value
+type JSONBitcask =  Bitcask B.ByteString String
 type RawBitcask = Bitcask Types.K Types.V
 
 instance Backend RawBitcask where
   type Key     RawBitcask = Types.K
   type Value   RawBitcask = Types.V
-  query = undefined
-  update k _ = do
+  query k = do
+    bitcask <- ask
+    return $ return $ queryMem (keyDir bitcask) k
+  update k v = do
     bitcask <- get
-    return $ do
-      print k
-      return ()
-  del = undefined
+    put $ bitcask { keyDir = insertMem (keyDir bitcask) k v }
+    return $ return ()
+  del k = do
+    bitcask <- get
+    put $ bitcask { keyDir = deleteMem (keyDir bitcask) k }
+    return $ return ()
 
 instance Database JSONBitcask RawBitcask where
-  type V JSONBitcask = Aeson.Value
+  type V JSONBitcask = String -- Aeson.Value
   type K JSONBitcask = B.ByteString
   toBackend = coerce
   toDatabase = coerce
 
-openJSONBitcask :: String -> JSONBitcask
-openJSONBitcask path = Bitcask { keyDir = openMemoryMap path
-                               , dataDir = path
-                               , settings = defaultSettings
-                               }
 
-instance Serializable Aeson.Value Types.V where
-  decode _ = Right Aeson.Null
-  encode _ = empty
+openRawBitcask :: String -> RawBitcask
+openRawBitcask path = Bitcask { keyDir = openMemoryMap path
+                              , dataDir = path
+                              , settings = defaultSettings
+                              }
+
+openJSONBitcask :: String -> JSONBitcask
+openJSONBitcask = coerce . openRawBitcask
+
+instance Serializable String Types.V where
+  decode = Right . C.unpack -- Aeson.eitherDecode
+  encode = C.pack
 
 main :: IO ()
 main = runUpdate run $ openJSONBitcask "/dev/null"
 
 run :: Update JSONBitcask (IO ())
 run = do
-  insert B.empty Aeson.Null
-  insert B.empty Aeson.Null
-  fmap void (liftQuery $ find B.empty)
-  delete B.empty
+  insert "foo" "FOO"
+  insert "bar" "BAR"
+  fmap (>>= print) (liftQuery $ find "foo")
+  delete "foo"
+  fmap (>>= print) (liftQuery $ find "foo")
