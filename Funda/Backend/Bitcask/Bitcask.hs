@@ -25,15 +25,15 @@ instance Backend RawBitcask where
   type Value   RawBitcask = Types.V
   query k = do
     bitcask <- ask
-    return $ return $ queryMem (keyDir bitcask) k
+    return $ queryMem (keyDir bitcask) k
   update k v = do
     bitcask <- get
     put $ bitcask { keyDir = insertMem (keyDir bitcask) k v }
-    return $ return ()
+    return ()
   del k = do
     bitcask <- get
     put $ bitcask { keyDir = deleteMem (keyDir bitcask) k }
-    return $ return ()
+    return ()
 
 instance Database JSONBitcask RawBitcask where
   type V JSONBitcask = String -- Aeson.Value
@@ -56,12 +56,14 @@ instance Serializable String Types.V where
   encode = C.pack
 
 main :: IO ()
-main = runUpdate run $ openJSONBitcask "/dev/null"
+main = runUpdate ops $ openJSONBitcask "/dev/null"
 
-run :: Update JSONBitcask (IO ())
-run = do
+ops :: Update JSONBitcask ()
+ops = do
   insert "foo" "FOO"
   insert "bar" "BAR"
-  fmap (>>= print) (liftQuery $ find "foo")
+  val' <- liftQuery $ find "foo"
+  liftIO $ print val'
   delete "foo"
-  fmap (>>= print) (liftQuery $ find "foo")
+  val <- liftQuery $ find "foo"
+  liftIO $ print val

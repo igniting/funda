@@ -14,11 +14,9 @@ import Control.Monad.State
 import Funda.Backend.Serializable
 
 -- | Context monad for Update events.
-newtype Update st a = Update { unUpdate :: State st a }
-                     deriving (Monad, Functor, Applicative, MonadState st)
+newtype Update st a = Update { unUpdate :: StateT st IO a }
+                     deriving (Monad, MonadIO, Functor, Applicative, MonadState st)
 
-instance MonadIO (Update st) where
-  liftIO = undefined
 
 -- instance Monad (Update st) where
 --   return a = Update $ state (\s -> (a,s))
@@ -29,8 +27,8 @@ instance MonadIO (Update st) where
 --                                                        in runState st' s'
 --                                      )
 
-runUpdate :: Update st a -> st -> a
-runUpdate u = evalState (unUpdate u)
+runUpdate :: Update st a -> st -> IO a
+runUpdate u = evalStateT (unUpdate u)
 
 -- | Context monad for Query events.
 newtype Query st a  = Query { unQuery :: Reader st a }
@@ -48,9 +46,9 @@ liftQuery q = do
 class Backend b where
   type Key     b
   type Value   b
-  query     :: Key b -> Query b (IO (Maybe (Value b)))
-  update    :: Key b -> Value b -> Update b (IO ())
-  del       :: Key b -> Update b (IO ())
+  query     :: Key b -> Query b (Maybe (Value b))
+  update    :: Key b -> Value b -> Update b ()
+  del       :: Key b -> Update b ()
 
 class (Backend b,
        Serializable (K d) (Key b),
@@ -63,25 +61,25 @@ class (Backend b,
   toDatabase :: b -> d
 
   liftU :: Update b a -> Update d a
-  liftU (Update st) = Update $ state f
+  liftU (Update st) = Update $ StateT f
     where
-      f database = (val, toDatabase backend)
-        where
-          (val, backend) = runState st $ toBackend database
+      f database = do
+        (val, backend) <- runStateT st $ toBackend database
+        return (val, toDatabase backend)
 
   liftQ :: Query b a -> Query d a
   liftQ (Query r) = Query $ withReader toBackend r
 
-  find   :: K d ->  Query d (IO (Maybe (V d)))
-  find key = liftQ $ fmap (fmap (fromMaybeEither . fmap decode)) (query (encode key))
+  find   :: K d ->  Query d (Maybe (V d))
+  find key = liftQ $ fmap (fromMaybeEither . fmap decode) (query (encode key))
     where
       fromMaybeEither :: Maybe (Either String a) -> Maybe a
       fromMaybeEither Nothing            = Nothing
       fromMaybeEither (Just (Right a))   = Just a
       fromMaybeEither (Just (Left err))  = error $ "Could not decode: \n" ++ err
 
-  insert :: K d -> V d -> Update d (IO ())
+  insert :: K d -> V d -> Update d ()
   insert key value = liftU $ update (encode key) (encode value)
 
-  delete :: K d -> Update d (IO ())
+  delete :: K d -> Update d ()
   delete key = liftU $ del $ encode key
