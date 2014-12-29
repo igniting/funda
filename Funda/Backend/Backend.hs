@@ -31,17 +31,17 @@ runUpdate :: Update st a -> st -> IO a
 runUpdate u = evalStateT (unUpdate u)
 
 -- | Context monad for Query events.
-newtype Query st a  = Query { unQuery :: Reader st a }
+newtype Query st a  = Query { unQuery :: ReaderT st IO a }
                      deriving (Monad, Functor, Applicative, MonadReader st)
 
-runQuery :: Query st a -> st -> a
-runQuery q = runReader (unQuery q)
+runQuery :: Query st a -> st -> IO a
+runQuery q = runReaderT (unQuery q)
 
 -- | Run a query in the Update Monad.
 liftQuery :: Query st a -> Update st a
 liftQuery q = do
   st <- get
-  return (runReader (unQuery q) st)
+  liftIO (runReaderT (unQuery q) st)
 
 class Backend b where
   type Key     b
@@ -68,7 +68,7 @@ class (Backend b,
         return (val, toDatabase backend)
 
   liftQ :: Query b a -> Query d a
-  liftQ (Query r) = Query $ withReader toBackend r
+  liftQ (Query r) = Query $ withReaderT toBackend r
 
   find   :: K d ->  Query d (Maybe (V d))
   find key = liftQ $ fmap (fromMaybeEither . fmap decode) (query (encode key))
