@@ -32,7 +32,7 @@ runUpdate u = evalStateT (unUpdate u)
 
 -- | Context monad for Query events.
 newtype Query st a  = Query { unQuery :: ReaderT st IO a }
-                     deriving (Monad, Functor, Applicative, MonadReader st)
+                     deriving (Monad, MonadIO, Functor, Applicative, MonadReader st)
 
 runQuery :: Query st a -> st -> IO a
 runQuery q = runReaderT (unQuery q)
